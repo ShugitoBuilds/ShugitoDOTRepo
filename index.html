@@ -1,9 +1,131 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Demo Page</title>
+<meta charset="UTF-8" />
+<title>DOT-FlowMap 🌊</title>
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.4/dist/tailwind.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3"></script>
 </head>
-<body>
-    <h1>Welcome to the Demo Page</h1>
+<body class="bg-gray-900 text-gray-100 font-sans flex flex-col items-center p-6">
+  <h1 class="text-2xl mb-2">DOT Flow Map</h1>
+  <p class="text-sm mb-6 text-gray-400">Live Sankey diagram of the latest DOT transfers between top 6 accounts (from Subscan).</p>
+
+  <div id="chart"></div>
+  <p id="status" class="mt-4 text-gray-400 text-xs"></p>
+
+<script>
+const status = (msg) => document.getElementById('status').textContent = msg;
+
+/* 1. Fetch recent transfers from Subscan (no API key -> limited but works) */
+async function fetchTransfers() {
+  status('Fetching transfers from Subscan…');
+  try {
+    const res = await fetch('https://polkadot.subscan.io/api/scan/transfers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address: "", row: 120, page: 0 })
+    });
+    const js = await res.json();
+    return js.data?.transfers || [];
+  } catch (e) {
+    console.error(e);
+    status('Live fetch failed, using mock data.');
+    /* Fallback mock */
+    return [
+      { from: 'Alice', to: 'Bob', amount: 12 },
+      { from: 'Bob',   to: 'Charlie', amount: 6 },
+      { from: 'Alice', to: 'Dave', amount: 9 },
+      { from: 'Eve',   to: 'Bob', amount: 3 },
+      { from: 'Charlie', to: 'Alice', amount: 2 }
+    ];
+  }
+}
+
+/* 2. Transform into Sankey nodes + links */
+function buildSankeyData(transfers) {
+  // pick top 6 addresses by frequency to keep diagram readable
+  const freq = {};
+  transfers.forEach(t => {
+    freq[t.from] = (freq[t.from] || 0) + 1;
+    freq[t.to]   = (freq[t.to]   || 0) + 1;
+  });
+  const topAddrs = Object.entries(freq)
+      .sort((a,b)=>b[1]-a[1]).slice(0,6).map(x=>x[0]);
+
+  const nodes = topAddrs.map(name => ({ name }));
+  const lookup = Object.fromEntries(nodes.map((n,i)=>[n.name,i]));
+
+  const links = transfers
+    .filter(t => topAddrs.includes(t.from) && topAddrs.includes(t.to))
+    .map(t => ({
+      source: lookup[t.from],
+      target: lookup[t.to],
+      value : Number(t.amount || t.amount_total || 0)/1e10 || 1   // convert Planck → DOT rough
+    }))
+    .filter(l => l.value > 0);
+
+  return {nodes, links};
+}
+
+/* 3. Render Sankey with D3 */
+function draw({nodes, links}) {
+  const width = 860, height = 500;
+  const svg = d3.select('#chart')
+    .append('svg')
+    .attr('viewBox', [0,0,width,height])
+    .attr('class','bg-gray-800 rounded');
+
+  const { sankey } = d3;
+  const sankeyGen = sankey()
+    .nodeWidth(15)
+    .nodePadding(10)
+    .extent([[1,1],[width-1,height-6]]);
+
+  const graph = sankeyGen({ nodes: nodes.map(d=>({...d})), links });
+
+  // Links
+  svg.append('g')
+    .attr('fill', 'none')
+    .selectAll('path')
+    .data(graph.links)
+    .join('path')
+      .attr('d', d3.sankeyLinkHorizontal())
+      .attr('stroke', '#e6007a')
+      .attr('stroke-width', d => Math.max(1, d.width))
+      .attr('stroke-opacity', .35);
+
+  // Nodes
+  svg.append('g')
+    .selectAll('rect')
+    .data(graph.nodes)
+    .join('rect')
+      .attr('x', d => d.x0)
+      .attr('y', d => d.y0)
+      .attr('height', d => d.y1 - d.y0)
+      .attr('width', d => d.x1 - d.x0)
+      .attr('fill', '#00d1b2');
+
+  // Labels
+  svg.append('g')
+    .style('font-size','12px')
+    .attr('fill', 'white')
+    .selectAll('text')
+    .data(graph.nodes)
+    .join('text')
+      .attr('x', d => d.x0 < width / 2 ? d.x1 + 6 : d.x0 - 6)
+      .attr('y', d => (d.y1 + d.y0) / 2)
+      .attr('dy','0.35em')
+      .attr('text-anchor', d => d.x0 < width / 2 ? 'start' : 'end')
+      .text(d => d.name);
+}
+
+(async () => {
+  const transfers = await fetchTransfers();
+  status(`Fetched ${transfers.length} transfers.`);
+  const data = buildSankeyData(transfers);
+  draw(data);
+})();
+</script>
 </body>
 </html>

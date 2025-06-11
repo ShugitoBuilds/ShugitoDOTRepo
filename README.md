@@ -1,8 +1,7 @@
 # ShugitoDOTRepo
 
-This repository includes a simple HTML demo page called `index.html`.
-The page can be opened in any web browser to demonstrate a basic
-static site. To view it, open the file with your browser of choice
-(e.g. double-click `index.html` or run `firefox index.html`).
+This repository contains **DOT-FlowMap**, a single-file HTML demo. The page visualizes recent DOT transfers using D3-Sankey and TailwindCSS.
 
-Currently, no automated tests exist.
+To try it out, open `index.html` directly in your browser or serve it with any local web server (for example `python3 -m http.server`).
+
+Currently no automated tests exist.
