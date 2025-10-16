@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  min-height: 100vh;
+}
+
+.toast-enter {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.toast-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 150ms ease-in, transform 150ms ease-in;
+}
+
+.toast-leave {
+  opacity: 1;
+}
+
+.toast-leave-active {
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 150ms ease-out, transform 150ms ease-out;
+}
