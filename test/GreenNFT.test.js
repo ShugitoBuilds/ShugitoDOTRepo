@@ -35,7 +35,6 @@ describe("GreenNFT", function () {
       expect(await greenNFT.owner()).to.equal(owner.address);
       expect(await greenNFT.ownerTreasury()).to.equal(0n);
       expect(await greenNFT.totalDonated()).to.equal(0n);
-      expect(await greenNFT.getTotalDonated()).to.equal(0n);
     });
 
     it("reverts when sustainability wallet is zero", async function () {
@@ -61,7 +60,6 @@ describe("GreenNFT", function () {
       expect(await greenNFT.ownerOf(1n)).to.equal(user.address);
       expect(await greenNFT.ownerTreasury()).to.equal(ownerShare);
       expect(await greenNFT.totalDonated()).to.equal(sustainabilityShare);
-      expect(await greenNFT.getTotalDonated()).to.equal(sustainabilityShare);
     });
 
     it("emits events for minting and donation", async function () {

@@ -11,14 +11,10 @@ GreenNFT is a Solidity-based NFT smart contract tailored for eco-friendly initia
 
 ## Project Structure
 ```
-contracts/GreenNFT.sol             # Smart contract implementation
-scripts/deploy.js                  # Deployment helper for local nodes
-hardhat.config.js                  # Hardhat configuration with Parity plugin support
-test/GreenNFT.test.js              # Hardhat unit tests
-frontend/                          # React + Vite single-page dapp
-  src/components/MintCard.jsx      # Mint CTA and donation display
-  src/components/WalletConnect.jsx # Wallet connection UI
-  src/config.js                    # Contract configuration (address + ABI)
+contracts/GreenNFT.sol   # Smart contract implementation
+scripts/deploy.js        # Deployment helper for local nodes
+hardhat.config.js        # Hardhat configuration with Parity plugin support
+test/GreenNFT.test.js    # Hardhat unit tests
 ```
 
 ## Prerequisites
@@ -43,21 +39,6 @@ Run the Hardhat unit tests:
 ```bash
 npx hardhat test
 ```
-
-## Frontend DApp
-The `frontend/` directory hosts a lightweight Vite + React + TailwindCSS interface that interacts with the deployed GreenNFT contract via `ethers.js`.
-
-### Configure the contract address
-Update `frontend/src/config.js` with the deployed GreenNFT address before running the app. The ABI is imported directly from the Hardhat artifacts so recompiling the contract keeps the interface aligned automatically.
-
-### Install dependencies & run the dev server
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-The Vite dev server listens on [http://localhost:5173](http://localhost:5173). Connect a MetaMask (or other Polkadot-EVM compatible) wallet, ensure it is funded with at least `0.01` native tokens on the selected network, and click **Mint GreenNFT** to trigger the on-chain transaction. The UI refreshes the total donated amount every 30 seconds and surfaces status toasts for transaction feedback.
 
 ## Deployment (Local Node)
 Deploy the contract to a local EVM-compatible node (Hardhat network or the Parity devcontainer local node):

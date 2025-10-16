@@ -92,11 +92,6 @@ contract GreenNFT is ERC721, Ownable {
         return _totalDonated;
     }
 
-    /// @notice Backwards-compatible getter for the total donated amount.
-    function getTotalDonated() external view returns (uint256) {
-        return _totalDonated;
-    }
-
     /// @notice Return the treasury balance accumulated for the owner.
     function ownerTreasury() external view returns (uint256) {
         return _ownerTreasury;
