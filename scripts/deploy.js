@@ -5,30 +5,22 @@ const DEFAULT_SUSTAINABILITY_WALLET =
 
 async function main() {
   let deployer;
+  let sustainabilityCandidate;
 
   const signers = await hre.ethers.getSigners();
   if (signers.length > 0) {
     [deployer] = signers;
+    sustainabilityCandidate = signers[1] ?? signers[0];
   } else {
     if (!process.env.PRIVATE_KEY) {
       throw new Error("No signer available. Set PRIVATE_KEY in your environment.");
     }
     deployer = new hre.ethers.Wallet(process.env.PRIVATE_KEY, hre.ethers.provider);
+    sustainabilityCandidate = deployer;
   }
 
-  const sustainabilityWallet = (process.env.SUSTAINABILITY_WALLET || DEFAULT_SUSTAINABILITY_WALLET).trim();
-
-  if (!hre.ethers.isAddress(sustainabilityWallet)) {
-    throw new Error(
-      `Configured sustainability wallet (${sustainabilityWallet}) is not a valid address. Set SUSTAINABILITY_WALLET in your environment.`
-    );
-  }
-
-  if (!process.env.SUSTAINABILITY_WALLET) {
-    console.log(
-      `SUSTAINABILITY_WALLET not provided. Using default sustainability wallet ${DEFAULT_SUSTAINABILITY_WALLET}.`
-    );
-  }
+  const sustainabilityWallet =
+    process.env.SUSTAINABILITY_WALLET ?? sustainabilityCandidate.address;
 
   console.log("Deploying GreenNFT with account:", deployer.address);
   console.log("Network:", hre.network.name);

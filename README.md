@@ -67,7 +67,8 @@ Deploy the contract to a local EVM-compatible node (Hardhat network or the Parit
 npx hardhat run scripts/deploy.js --network local
 ```
 
-The deployment script prints both the deployed contract address and the sustainability wallet used. By default it targets Moonbeam's sustainability wallet `0x4647c3b4c5ba4efa6d8197331de00c26ce36e8e6`. Override the sustainability wallet via environment variable if desired:
+The deployment script prints both the deployed contract address and the sustainability wallet used. Override the sustainability
+wallet via environment variable if desired:
 ```bash
 SUSTAINABILITY_WALLET=0xYourAddress npx hardhat run scripts/deploy.js --network local
 ```
@@ -85,8 +86,6 @@ SUSTAINABILITY_WALLET=0xYourAddress npx hardhat run scripts/deploy.js --network 
    ```bash
    PRIVATE_KEY=<your_test_wallet_private_key>
    MOONBASE_URL=https://rpc.api.moonbase.moonbeam.network
-   # Optional – override the default Moonbeam sustainability wallet if required
-   # SUSTAINABILITY_WALLET=0xYourAddress
    ```
 5. Deploy to Moonbase Alpha once the account is funded:
    ```bash
