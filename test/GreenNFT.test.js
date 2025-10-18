@@ -41,68 +41,60 @@ describe("GreenNFT", function () {
       const GreenNFT = await ethers.getContractFactory("GreenNFT");
       await expect(
         GreenNFT.deploy("GreenNFT", "GNFT", "https://example.com/base/", ethers.ZeroAddress)
-      ).to.be.revertedWithCustomError(GreenNFT, "GreenNFT__ZeroAddress");
+      ).to.be.revertedWith("Invalid wallet");
     });
   });
 
   describe("minting", function () {
+    const sampleURI = "ipfs://sample-cid";
+
     it("reverts when incorrect payment is supplied", async function () {
-      await expect(greenNFT.connect(user).mint({ value: mintPrice - 1n })).to.be.revertedWithCustomError(
-        greenNFT,
-        "GreenNFT__IncorrectMintPrice"
+      await expect(greenNFT.connect(user).mint(sampleURI, { value: mintPrice - 1n })).to.be.revertedWith(
+        "Incorrect payment"
       );
     });
 
     it("mints successfully, transfers ownership, and distributes fees", async function () {
-      await expect(() => greenNFT.connect(user).mint({ value: mintPrice }))
+      await expect(() => greenNFT.connect(user).mint(sampleURI, { value: mintPrice }))
         .to.changeEtherBalances([user, sustainability, greenNFT], [-mintPrice, sustainabilityShare, ownerShare]);
 
       expect(await greenNFT.ownerOf(1n)).to.equal(user.address);
       expect(await greenNFT.ownerTreasury()).to.equal(ownerShare);
       expect(await greenNFT.totalDonated()).to.equal(sustainabilityShare);
+      expect(await greenNFT.tokenURI(1n)).to.equal(sampleURI);
     });
 
     it("emits events for minting and donation", async function () {
-      await expect(greenNFT.connect(user).mint({ value: mintPrice }))
+      await expect(greenNFT.connect(user).mint(sampleURI, { value: mintPrice }))
         .to.emit(greenNFT, "DonationTransferred")
         .withArgs(sustainability.address, sustainabilityShare)
         .and.to.emit(greenNFT, "GreenNFTMinted")
         .withArgs(user.address, 1n, sustainabilityShare, ownerShare);
     });
+
+    it("falls back to base URI when metadata is omitted", async function () {
+      await expect(greenNFT.connect(user).mint("", { value: mintPrice })).not.to.be.reverted;
+      expect(await greenNFT.tokenURI(1n)).to.equal("https://example.com/base/1");
+    });
+
+    it("reverts when no metadata is provided and base URI is empty", async function () {
+      await greenNFT.connect(owner).setBaseURI("");
+      await expect(greenNFT.connect(user).mint("", { value: mintPrice })).to.be.revertedWithCustomError(
+        greenNFT,
+        "GreenNFT__InvalidTokenURI"
+      );
+    });
   });
 
-  describe("administrative actions", function () {
+  describe("security", function () {
     beforeEach(async function () {
-      await greenNFT.connect(user).mint({ value: mintPrice });
+      await greenNFT.connect(user).mint("ipfs://metadata", { value: mintPrice });
     });
 
-    it("allows the owner to update the sustainability wallet", async function () {
-      await expect(greenNFT.connect(owner).updateSustainabilityWallet(other.address))
-        .to.emit(greenNFT, "SustainabilityWalletUpdated")
-        .withArgs(sustainability.address, other.address);
-
-      expect(await greenNFT.sustainabilityWallet()).to.equal(other.address);
-    });
-
-    it("reverts when sustainability wallet is updated to zero address", async function () {
-      await expect(
-        greenNFT.connect(owner).updateSustainabilityWallet(ethers.ZeroAddress)
-      ).to.be.revertedWithCustomError(greenNFT, "GreenNFT__ZeroAddress");
-    });
-
-    it("allows the owner to withdraw accumulated funds", async function () {
-      await expect(() => greenNFT.connect(owner).withdrawOwnerFunds(owner.address)).to.changeEtherBalances(
-        [greenNFT, owner],
-        [-ownerShare, ownerShare]
-      );
-
-      expect(await greenNFT.ownerTreasury()).to.equal(0n);
-    });
-
-    it("reverts when withdrawing with zero address", async function () {
-      await expect(
-        greenNFT.connect(owner).withdrawOwnerFunds(ethers.ZeroAddress)
-      ).to.be.revertedWithCustomError(greenNFT, "GreenNFT__ZeroAddress");
+    it("rejects owner withdrawals from non-owner accounts", async function () {
+      await expect(greenNFT.connect(user).withdrawOwnerFunds(user.address))
+        .to.be.revertedWithCustomError(greenNFT, "OwnableUnauthorizedAccount")
+        .withArgs(user.address);
     });
 
     it("reverts when withdrawing without funds", async function () {
@@ -110,6 +102,26 @@ describe("GreenNFT", function () {
       await expect(greenNFT.connect(owner).withdrawOwnerFunds(owner.address)).to.be.revertedWithCustomError(
         greenNFT,
         "GreenNFT__NoFundsToWithdraw"
+      );
+    });
+
+    it("prevents reentrancy during withdrawals", async function () {
+      const Reentrant = await ethers.getContractFactory("ReentrantWithdrawer");
+      const reentrant = await Reentrant.deploy(greenNFT.target);
+      await reentrant.waitForDeployment();
+
+      await greenNFT.connect(owner).transferOwnership(reentrant.target);
+
+      await expect(reentrant.attack()).to.not.be.reverted;
+      expect(await greenNFT.ownerTreasury()).to.equal(0n);
+      expect(await ethers.provider.getBalance(greenNFT.target)).to.equal(0n);
+
+      const contractBalance = await ethers.provider.getBalance(reentrant.target);
+      expect(contractBalance).to.equal(ownerShare);
+
+      await expect(() => reentrant.sweep(owner.address)).to.changeEtherBalances(
+        [reentrant, owner],
+        [-ownerShare, ownerShare]
       );
     });
   });

@@ -9,6 +9,7 @@ import {
   DONATION_REFRESH_INTERVAL,
   MINT_PRICE
 } from './config.js';
+import { ipfs } from '../../utils/ipfs.js';
 
 const formatError = (error) => {
   if (!error) return 'Unknown error';
@@ -37,9 +38,14 @@ export default function App() {
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
   const [address, setAddress] = useState('');
+  const [metadataName, setMetadataName] = useState('');
+  const [metadataDescription, setMetadataDescription] = useState('');
+  const [imageFile, setImageFile] = useState(null);
   const [metadataURI, setMetadataURI] = useState('');
+  const [imageInputKey, setImageInputKey] = useState(0);
   const [status, setStatus] = useState(null);
   const [isMinting, setIsMinting] = useState(false);
+  const [isPreparingMetadata, setIsPreparingMetadata] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [totalDonated, setTotalDonated] = useState('0.0');
   const [donationLoading, setDonationLoading] = useState(false);
@@ -97,25 +103,58 @@ export default function App() {
       return;
     }
 
-    setIsMinting(true);
-    setStatus({ type: 'info', message: 'Minting transaction submitted…' });
+    if (!metadataName.trim() || !metadataDescription.trim()) {
+      setStatus({ type: 'error', message: 'Name and description are required to generate metadata.' });
+      return;
+    }
+
+    if (!imageFile) {
+      setStatus({ type: 'error', message: 'Select an image to include in your NFT metadata.' });
+      return;
+    }
+
+    setIsPreparingMetadata(true);
+    setStatus({ type: 'info', message: 'Uploading metadata to IPFS…' });
 
     try {
+      const imageResult = await ipfs.add(imageFile);
+      const imageCID = imageResult.cid?.toString?.() ?? String(imageResult.cid);
+      const metadataPayload = {
+        name: metadataName.trim(),
+        description: metadataDescription.trim(),
+        image: `ipfs://${imageCID}`
+      };
+
+      const metadataResult = await ipfs.add({
+        path: 'metadata.json',
+        content: new TextEncoder().encode(JSON.stringify(metadataPayload, null, 2))
+      });
+
+      const nextMetadataURI = `ipfs://${metadataResult.cid.toString()}`;
+      setMetadataURI(nextMetadataURI);
+      setStatus({ type: 'info', message: 'Metadata uploaded. Submitting mint transaction…' });
+      setIsPreparingMetadata(false);
+
+      setIsMinting(true);
       const value = ethers.parseEther(MINT_PRICE);
-      const tx = await contract.mint({ value });
+      const tx = await contract.mint(nextMetadataURI, { value });
       const receipt = await tx.wait();
       setStatus({
         type: 'success',
         message: `Minted successfully! Thank you for supporting sustainability. Tx hash: ${receipt.hash}`
       });
-      setMetadataURI('');
+      setMetadataName('');
+      setMetadataDescription('');
+      setImageFile(null);
+      setImageInputKey((value) => value + 1);
       fetchDonationTotal();
     } catch (error) {
       setStatus({ type: 'error', message: `Mint failed: ${formatError(error)}` });
     } finally {
+      setIsPreparingMetadata(false);
       setIsMinting(false);
     }
-  }, [contract, fetchDonationTotal, signer]);
+  }, [contract, fetchDonationTotal, imageFile, metadataDescription, metadataName]);
 
   useEffect(() => {
     if (!window.ethereum) return undefined;
@@ -148,20 +187,20 @@ export default function App() {
         <WalletConnect address={address} onConnect={connectWallet} connecting={isConnecting} />
         <MintCard
           address={address}
+          metadataName={metadataName}
+          metadataDescription={metadataDescription}
           metadataURI={metadataURI}
-          onMetadataChange={setMetadataURI}
+          imageInputKey={imageInputKey}
+          imageName={imageFile?.name ?? ''}
+          onNameChange={setMetadataName}
+          onDescriptionChange={setMetadataDescription}
+          onImageChange={setImageFile}
           onMint={mintGreenNFT}
           isMinting={isMinting}
+          isPreparingMetadata={isPreparingMetadata}
           totalDonated={totalDonated}
           donationLoading={donationLoading}
         />
-        {metadataURI && (
-          <div className="w-full max-w-xl text-sm text-slate-300 text-center">
-            <p>
-              Metadata reference saved locally: <span className="text-brand-light break-words">{metadataURI}</span>
-            </p>
-          </div>
-        )}
         {status && (
           <div
             className={`w-full max-w-xl rounded-2xl border px-6 py-4 text-sm shadow-lg transition ${
