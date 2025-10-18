@@ -3,10 +3,17 @@ import { MINT_PRICE } from '../config.js';
 
 export default function MintCard({
   address,
+  metadataName,
+  metadataDescription,
   metadataURI,
-  onMetadataChange,
+  imageInputKey,
+  imageName,
+  onNameChange,
+  onDescriptionChange,
+  onImageChange,
   onMint,
   isMinting,
+  isPreparingMetadata,
   totalDonated,
   donationLoading
 }) {
@@ -21,22 +28,69 @@ export default function MintCard({
         </p>
       </div>
 
-      <div className="flex flex-col gap-3">
-        <label htmlFor="metadata" className="text-sm uppercase tracking-wide text-slate-400">
-          Metadata URI (optional)
-        </label>
-        <input
-          id="metadata"
-          type="text"
-          placeholder="ipfs://..."
-          value={metadataURI}
-          onChange={(event) => onMetadataChange(event.target.value)}
-          className="w-full rounded-lg border border-slate-700 bg-slate-950/60 px-4 py-3 text-slate-100 focus:border-brand focus:outline-none"
-        />
-        <p className="text-xs text-slate-400">
-          The current smart contract mints using its configured baseURI. Use this field to track your metadata reference.
-        </p>
-      </div>
+      <form className="flex flex-col gap-5" onSubmit={(event) => { event.preventDefault(); onMint(); }}>
+        <div className="flex flex-col gap-3">
+          <label htmlFor="name" className="text-sm uppercase tracking-wide text-slate-400">
+            NFT Name
+          </label>
+          <input
+            id="name"
+            type="text"
+            placeholder="Eco Warrior"
+            value={metadataName}
+            onChange={(event) => onNameChange(event.target.value)}
+            className="w-full rounded-lg border border-slate-700 bg-slate-950/60 px-4 py-3 text-slate-100 focus:border-brand focus:outline-none"
+            required
+          />
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <label htmlFor="description" className="text-sm uppercase tracking-wide text-slate-400">
+            Description
+          </label>
+          <textarea
+            id="description"
+            placeholder="Describe the sustainability impact of this collectible."
+            value={metadataDescription}
+            onChange={(event) => onDescriptionChange(event.target.value)}
+            className="w-full min-h-[120px] rounded-lg border border-slate-700 bg-slate-950/60 px-4 py-3 text-slate-100 focus:border-brand focus:outline-none"
+            required
+          />
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <label htmlFor="image" className="text-sm uppercase tracking-wide text-slate-400">
+            Artwork Image
+          </label>
+          <input
+            id="image"
+            type="file"
+            accept="image/*"
+            key={imageInputKey}
+            onChange={(event) => onImageChange(event.target.files?.[0] ?? null)}
+            className="w-full rounded-lg border border-dashed border-slate-700 bg-slate-950/60 px-4 py-3 text-slate-100 file:mr-4 file:rounded-md file:border-0 file:bg-brand/80 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white"
+            required
+          />
+          {imageName && <p className="text-xs text-slate-400">Selected file: {imageName}</p>}
+        </div>
+
+        {metadataURI && (
+          <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+            <strong className="block text-xs uppercase tracking-wide text-emerald-200 mb-1">Prepared Metadata</strong>
+            <span className="break-words">{metadataURI}</span>
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={!address || isMinting || isPreparingMetadata}
+          className="w-full py-3 rounded-full bg-gradient-to-r from-brand via-emerald-500 to-brand-light text-white font-semibold text-lg shadow-lg hover:shadow-brand-light/50 transition disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {isMinting || isPreparingMetadata
+            ? 'Uploading & Minting…'
+            : `Mint GreenNFT (${MINT_PRICE} ETH)`}
+        </button>
+      </form>
 
       <div className="flex flex-col gap-2">
         <span className="text-sm uppercase tracking-wide text-slate-400">Total Donated</span>
@@ -44,16 +98,6 @@ export default function MintCard({
           {donationLoading ? 'Loading…' : `${formattedDonation} ETH`}
         </span>
       </div>
-
-      <button
-        type="button"
-        onClick={onMint}
-        disabled={!address || isMinting}
-        className="w-full py-3 rounded-full bg-gradient-to-r from-brand via-emerald-500 to-brand-light text-white font-semibold text-lg shadow-lg hover:shadow-brand-light/50 transition disabled:opacity-60 disabled:cursor-not-allowed"
-      >
-        {isMinting ? 'Minting…' : `Mint GreenNFT (${MINT_PRICE} ETH)`}
-      </button>
-
       <p className="text-xs text-slate-400">
         Requires a connected wallet with at least {MINT_PRICE} ETH on the selected network.
       </p>
@@ -63,10 +107,17 @@ export default function MintCard({
 
 MintCard.propTypes = {
   address: PropTypes.string,
-  metadataURI: PropTypes.string.isRequired,
-  onMetadataChange: PropTypes.func.isRequired,
+  metadataName: PropTypes.string.isRequired,
+  metadataDescription: PropTypes.string.isRequired,
+  metadataURI: PropTypes.string,
+  imageInputKey: PropTypes.number.isRequired,
+  imageName: PropTypes.string,
+  onNameChange: PropTypes.func.isRequired,
+  onDescriptionChange: PropTypes.func.isRequired,
+  onImageChange: PropTypes.func.isRequired,
   onMint: PropTypes.func.isRequired,
   isMinting: PropTypes.bool.isRequired,
+  isPreparingMetadata: PropTypes.bool.isRequired,
   totalDonated: PropTypes.string,
   donationLoading: PropTypes.bool.isRequired
 };

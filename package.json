@@ -6,7 +6,10 @@
   "scripts": {
     "build": "npx hardhat compile",
     "test": "npx hardhat test",
-    "deploy:local": "npx hardhat run scripts/deploy.js --network local"
+    "deploy:local": "npx hardhat run scripts/deploy.js --network local",
+    "upload:metadata": "node scripts/uploadMetadata.js",
+    "analyze:solidity": "npx hardhat check",
+    "analyze:slither": "slither ."
   },
   "keywords": [],
   "author": "",
@@ -16,6 +19,10 @@
     "@nomicfoundation/hardhat-toolbox": "^6.1.0",
     "@openzeppelin/contracts": "^5.4.0",
     "@parity/hardhat-polkadot": "^0.2.0-pre2",
+    "dotenv": "^17.2.3",
     "hardhat": "^2.26.3"
+  },
+  "dependencies": {
+    "ipfs-http-client": "^60.0.1"
   }
 }

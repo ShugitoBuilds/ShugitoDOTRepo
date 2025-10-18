@@ -4,15 +4,43 @@ pragma solidity ^0.8.24;
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+library SafeMath {
+    function add(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a + b;
+    }
+
+    function sub(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a - b;
+    }
+
+    function mul(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a * b;
+    }
+
+    function div(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a / b;
+    }
+}
 
 /// @title GreenNFT - Eco-friendly NFT minting with automated donations
 /// @notice Each mint routes 90% of the mint fee to a sustainability wallet and retains 10% for the owner treasury.
-contract GreenNFT is ERC721, Ownable {
-    /// @notice Price to mint a single NFT (0.01 ether represents 0.01 DOT equivalent in this environment)
-    uint256 public constant MINT_PRICE = 0.01 ether;
+contract GreenNFT is ERC721, Ownable, ReentrancyGuard {
+    using SafeMath for uint256;
+    using Strings for uint256;
+
+    uint16 private constant BPS_DENOMINATOR = 10_000;
+
+    uint16 private immutable i_donationBps;
+    uint16 private immutable i_ownerBps;
+    uint256 public immutable mintPrice;
+    address payable public immutable sustainabilityWallet;
+
     uint256 private _nextTokenId = 1;
-    address payable private _sustainabilityWallet;
     string private _baseTokenURI;
+    mapping(uint256 tokenId => string) private _tokenURIs;
     uint256 private _ownerTreasury;
     uint256 private _totalDonated;
 
@@ -28,18 +56,14 @@ contract GreenNFT is ERC721, Ownable {
     /// @param amount Amount transferred to the sustainability wallet.
     event DonationTransferred(address indexed sustainabilityWallet, uint256 amount);
 
-    /// @notice Emitted when the sustainability wallet is updated.
-    event SustainabilityWalletUpdated(address indexed previousWallet, address indexed newWallet);
-
     /// @notice Emitted when the base token URI is updated.
     event BaseURIUpdated(string previousBaseURI, string newBaseURI);
 
     /// @notice Emitted when the owner withdraws accumulated treasury funds.
     event OwnerFundsWithdrawn(address indexed recipient, uint256 amount);
 
-    error GreenNFT__ZeroAddress();
-    error GreenNFT__IncorrectMintPrice();
     error GreenNFT__NoFundsToWithdraw();
+    error GreenNFT__InvalidTokenURI();
 
     constructor(
         string memory name_,
@@ -47,19 +71,19 @@ contract GreenNFT is ERC721, Ownable {
         string memory baseURI_,
         address payable sustainabilityWallet_
     ) ERC721(name_, symbol_) Ownable(msg.sender) {
-        if (sustainabilityWallet_ == address(0)) {
-            revert GreenNFT__ZeroAddress();
-        }
+        require(sustainabilityWallet_ != address(0), "Invalid wallet");
 
-        _sustainabilityWallet = sustainabilityWallet_;
+        i_donationBps = 9_000;
+        i_ownerBps = uint16(BPS_DENOMINATOR - i_donationBps);
+        mintPrice = 0.01 ether;
+        sustainabilityWallet = sustainabilityWallet_;
         _baseTokenURI = baseURI_;
     }
 
     /// @notice Mint a new NFT by paying the exact mint price.
-    function mint() external payable returns (uint256) {
-        if (msg.value != MINT_PRICE) {
-            revert GreenNFT__IncorrectMintPrice();
-        }
+    function mint(string memory metadataURI) external payable nonReentrant returns (uint256) {
+        require(msg.value == mintPrice, "Incorrect payment");
+        require(sustainabilityWallet != address(0), "Invalid wallet");
 
         uint256 tokenId = _nextTokenId;
         unchecked {
@@ -68,23 +92,24 @@ contract GreenNFT is ERC721, Ownable {
 
         _safeMint(msg.sender, tokenId);
 
-        uint256 sustainabilityShare = (msg.value * 90) / 100;
-        uint256 ownerShare = msg.value - sustainabilityShare;
+        if (bytes(metadataURI).length > 0) {
+            _tokenURIs[tokenId] = metadataURI;
+        } else if (bytes(_baseTokenURI).length == 0) {
+            revert GreenNFT__InvalidTokenURI();
+        }
 
-        _ownerTreasury += ownerShare;
-        _totalDonated += sustainabilityShare;
+        uint256 sustainabilityShare = msg.value.mul(i_donationBps).div(BPS_DENOMINATOR);
+        uint256 ownerShare = msg.value.sub(sustainabilityShare);
 
-        Address.sendValue(_sustainabilityWallet, sustainabilityShare);
+        _ownerTreasury = _ownerTreasury.add(ownerShare);
+        _totalDonated = _totalDonated.add(sustainabilityShare);
 
-        emit DonationTransferred(_sustainabilityWallet, sustainabilityShare);
+        Address.sendValue(sustainabilityWallet, sustainabilityShare);
+
+        emit DonationTransferred(sustainabilityWallet, sustainabilityShare);
         emit GreenNFTMinted(msg.sender, tokenId, sustainabilityShare, ownerShare);
 
         return tokenId;
-    }
-
-    /// @notice Get the configured sustainability wallet address.
-    function sustainabilityWallet() external view returns (address) {
-        return _sustainabilityWallet;
     }
 
     /// @notice Return the total donated amount so far.
@@ -97,23 +122,10 @@ contract GreenNFT is ERC721, Ownable {
         return _ownerTreasury;
     }
 
-    /// @notice Allow the owner to update the sustainability wallet address.
-    function updateSustainabilityWallet(address payable newWallet) external onlyOwner {
-        if (newWallet == address(0)) {
-            revert GreenNFT__ZeroAddress();
-        }
-
-        address previousWallet = _sustainabilityWallet;
-        _sustainabilityWallet = newWallet;
-
-        emit SustainabilityWalletUpdated(previousWallet, newWallet);
-    }
-
     /// @notice Withdraw accumulated owner treasury funds to a recipient.
-    function withdrawOwnerFunds(address payable recipient) external onlyOwner {
-        if (recipient == address(0)) {
-            revert GreenNFT__ZeroAddress();
-        }
+    function withdrawOwnerFunds(address payable recipient) external onlyOwner nonReentrant {
+        require(recipient != address(0), "Invalid wallet");
+
         uint256 amount = _ownerTreasury;
         if (amount == 0) {
             revert GreenNFT__NoFundsToWithdraw();
@@ -137,8 +149,24 @@ contract GreenNFT is ERC721, Ownable {
         return _baseTokenURI;
     }
 
+    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+        _requireOwned(tokenId);
+
+        string memory storedURI = _tokenURIs[tokenId];
+        if (bytes(storedURI).length > 0) {
+            return storedURI;
+        }
+
+        string memory baseURI = _baseTokenURI;
+        if (bytes(baseURI).length == 0) {
+            return "";
+        }
+
+        return string.concat(baseURI, tokenId.toString());
+    }
+
     /// @notice Allow the contract to receive funds (if any stray transfers occur).
     receive() external payable {
-        _ownerTreasury += msg.value;
+        _ownerTreasury = _ownerTreasury.add(msg.value);
     }
 }
