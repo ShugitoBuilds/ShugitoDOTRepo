@@ -1,5 +1,8 @@
 const hre = require("hardhat");
 
+const DEFAULT_SUSTAINABILITY_WALLET =
+  "0x4647c3b4c5ba4efa6d8197331de00c26ce36e8e6";
+
 async function main() {
   let deployer;
   let sustainabilityCandidate;
